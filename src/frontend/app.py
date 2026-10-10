@@ -195,9 +195,7 @@ class TradingApp(tb.Window):
             self.order_btn.pack_forget()
     
     def calculate_lot(self):
-        default_lot = 1
-        
-        """Calculate and display results"""
+        """Calculate and display results."""
         try:
             symbol = self.symbol.get()
             order_type = self.order_type.get()
