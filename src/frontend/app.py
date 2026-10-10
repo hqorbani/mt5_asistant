@@ -335,13 +335,18 @@ class TradingApp(tb.Window):
 
             self.order_result_dict = result._asdict()
 
-            if result.retcode != mt5.TRADE_RETCODE_DONE:
+            successful_retcodes = {
+                mt5.TRADE_RETCODE_DONE,
+                mt5.TRADE_RETCODE_PLACED,
+            }
+
+            if result.retcode in successful_retcodes:
+                message = result.comment
+            else:
                 message = (
                     f"Order failed: {result.comment} "
                     f"(retcode: {result.retcode})"
                 )
-            else:
-                message = result.comment
 
             self.order_result_label.config(text=message)
 
