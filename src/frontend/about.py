@@ -108,24 +108,36 @@ class About:
 
         text.pack(fill=BOTH, expand=True)
 
-        text.tag_configure(
-            "rtl",
-            justify="right",
-            spacing1=4,
-            spacing3=8
-        )
+        # text.tag_configure(
+        #     "rtl",
+        #     justify="right",
+        #     spacing1=4,
+        #     spacing3=8
+        # )
+
+        # about = """
+        #     درباره برنامه
+
+        #     دستیار متاتریدر یک دستیار معاملاتی برای متاتریدر  است که با هدف مدیریت سرمایه و اجرای سریع‌تر سفارش‌ها توسعه یافته است.
+
+        #     این برنامه با دریافت نماد، نوع سفارش، درصد ریسک، قیمت ورود، حد ضرر و حد سود، حجم مناسب معامله، سود و زیان احتمالی، نسبت ریسک به ریوارد و مارجین موردنیاز را به‌صورت خودکار محاسبه می‌کند.
+
+        #     پس از اعتبارسنجی اطلاعات، امکان ارسال مستقیم سفارش به متاتریدر  فراهم می‌شود.
+
+        #     © Hamzeh Qorbani
+        # """
 
         about = """
-درباره برنامه
+            About This Application
 
-دستیار متاتریدر یک دستیار معاملاتی برای متاتریدر  است که با هدف مدیریت سرمایه و اجرای سریع‌تر سفارش‌ها توسعه یافته است.
+            MT5 Trade Assistant is a trading assistant for MetaTrader 5, designed to support risk management and streamline order execution.
 
-این برنامه با دریافت نماد، نوع سفارش، درصد ریسک، قیمت ورود، حد ضرر و حد سود، حجم مناسب معامله، سود و زیان احتمالی، نسبت ریسک به ریوارد و مارجین موردنیاز را به‌صورت خودکار محاسبه می‌کند.
+            Based on the selected symbol, order type, risk percentage, entry price, stop-loss, and take-profit levels, the application automatically calculates the appropriate trade volume, potential profit and loss, risk-to-reward ratio, and required margin.
 
-پس از اعتبارسنجی اطلاعات، امکان ارسال مستقیم سفارش به متاتریدر  فراهم می‌شود.
+            After validating the input parameters, the application allows users to submit orders directly to MetaTrader 5.
 
-© Hamzeh Qorbani
-"""
+            © Hamzeh Qorbani
+        """
 
-        text.insert("1.0", about, "rtl")
+        text.insert("1.0", about)
         text.config(state="disabled")
