@@ -318,36 +318,49 @@ class TradingApp(tb.Window):
             self.order_btn.pack()
             
 
-        except ValueError as e:
-            self.calculated_lot_result.config(text = "please complete all fields")
+        except (ValueError, RuntimeError) as e:
+            self.calculated_lot_result.config(text=f"Error: {e}")
             self.order_btn.pack_forget()
 
-    def call_place_order(self,
-                        symbol ,
-                        order_type ,
-                        calculated_lot ,
-                        entry_price ,
-                        stop_loss_price ,
-                        take_profit_price):
-                        # result = mt5.order_send(request)
-                        result = self.place_order_internal(
-                                                symbol ,
-                                                order_type ,
-                                                calculated_lot ,
-                                                entry_price ,
-                                                stop_loss_price ,
-                                                take_profit_price
-                                            )
-                        # print("res:::\n", result)
-                        
-                        if result is not None:
-                            self.order_result_dict = result._asdict()
-                            if self.order_result_dict['retcode'] != mt5.TRADE_RETCODE_DONE:
-                                self.order_result_label.config(text = f"order_send failed, {self.order_result_dict['comment']}")
-                            else:
-                                self.order_result_label.config(text = self.order_result_dict['comment'])
+    def call_place_order(
+        self,
+        symbol,
+        order_type,
+        calculated_lot,
+        entry_price,
+        stop_loss_price,
+        take_profit_price,
+    ):
+        try:
+            result = self.place_order_internal(
+                symbol,
+                order_type,
+                calculated_lot,
+                entry_price,
+                stop_loss_price,
+                take_profit_price,
+            )
 
-                        
+            if result is None:
+                self.order_result_label.config(
+                    text=f"Order failed: {mt5.last_error()}"
+                )
+                return
+
+            self.order_result_dict = result._asdict()
+
+            if result.retcode != mt5.TRADE_RETCODE_DONE:
+                message = (
+                    f"Order failed: {result.comment} "
+                    f"(retcode: {result.retcode})"
+                )
+            else:
+                message = result.comment
+
+            self.order_result_label.config(text=message)
+
+        except (ValueError, RuntimeError) as e:
+            self.order_result_label.config(text=f"Order error: {e}")
         
     def update_symbol_suggestions(self, event):
         """Suggest similar symbols as you type"""
