@@ -206,7 +206,19 @@ class TradingApp(tb.Window):
             stop_loss_price = float(self.stop_loss_price.get())
             take_profit_price = float(self.take_profit_price.get())
             symbol_info = mt5.symbol_info(symbol)
-            
+
+            if symbol_info is None:
+                raise ValueError(f"Could not retrieve symbol information for {symbol}")
+
+            if self.account_info is None:
+                raise ValueError("Account information is unavailable.")
+
+            if not 0 < risk_percent <= 100:
+                raise ValueError("Risk percentage must be greater than 0 and at most 100.")
+
+            if entry_price <= 0 or stop_loss_price <= 0 or take_profit_price <= 0:
+                raise ValueError("Entry, stop-loss, and take-profit prices must be positive.")
+
             risk_amount = self.account_info.balance * risk_percent / 100
 
             if order_type == 'Buy Limit' and (stop_loss_price >= entry_price or take_profit_price <= entry_price):
@@ -217,11 +229,55 @@ class TradingApp(tb.Window):
                 raise ValueError('Invalid prices for Sell order')
             
            
-            profit, loss = calculate_profit_loss(order_type , symbol, default_lot, entry_price, stop_loss_price, take_profit_price)
-            number_pips = abs(entry_price - stop_loss_price) * 10 ** (symbol_info.digits -1)
-            pip_value = abs(loss / number_pips)
-            calculated_lot = round(risk_amount / (number_pips * pip_value) , 2)
-            profit, loss = calculate_profit_loss(order_type , symbol, calculated_lot, entry_price, stop_loss_price, take_profit_price)
+            profit, loss = calculate_profit_loss(
+                order_type,
+                symbol,
+                1.0,
+                entry_price,
+                stop_loss_price,
+                take_profit_price,
+            )
+
+            if loss >= 0:
+                raise ValueError("Stop-loss must result in a loss for this order.")
+
+            risk_per_lot = abs(loss)
+
+            if risk_per_lot <= 0:
+                raise ValueError("Could not calculate risk for one lot.")
+
+            raw_lot = risk_amount / risk_per_lot
+
+            volume_step = symbol_info.volume_step
+            volume_min = symbol_info.volume_min
+            volume_max = symbol_info.volume_max
+
+            if volume_step <= 0 or volume_min <= 0 or volume_max < volume_min:
+                raise ValueError("Invalid volume limits returned by MetaTrader 5.")
+
+            # Round down to avoid exceeding the requested risk.
+            calculated_lot = (
+                int(raw_lot / volume_step) * volume_step
+            )
+
+            calculated_lot = round(calculated_lot, 8)
+
+            if calculated_lot < volume_min:
+                raise ValueError(
+                    f"Calculated volume is below the symbol minimum ({volume_min}). "
+                    "Reduce the risk distance or review the risk settings."
+                )
+
+            calculated_lot = min(calculated_lot, volume_max)
+
+            profit, loss = calculate_profit_loss(
+                order_type,
+                symbol,
+                calculated_lot,
+                entry_price,
+                stop_loss_price,
+                take_profit_price,
+            )
             margin = calculate_margin(symbol, order_type, calculated_lot, entry_price)
             risk_reward = calculate_risk_reward(profit, loss)
             self.calculated_lot_result.config(text = f"lot: {calculated_lot:.2f}")
@@ -314,57 +370,91 @@ class TradingApp(tb.Window):
         else:
             self.order_type['values'] = []
     
-    def place_order_internal(self, symbol, order_type, lot, price, sl, tp , comment= "mt5 asistant by irsa technology"):
-        # استفاده از متدهای MetaTrader5 برای ارسال سفارش
-        print("order_type",order_type)
-        if order_type == "Buy":
-            action = mt5.TRADE_ACTION_DEAL
-            order_type = mt5.ORDER_TYPE_BUY
-            price = mt5.symbol_info_tick(symbol).ask
-            type_filling = mt5.ORDER_FILLING_RETURN
-        elif order_type == "Sell":
-            action = mt5.TRADE_ACTION_DEAL
-            order_type = mt5.ORDER_TYPE_SELL
-            price = mt5.symbol_info_tick(symbol).bid
-            type_filling = mt5.ORDER_FILLING_RETURN
-        elif order_type == "Buy Limit":
-            action = mt5.TRADE_ACTION_PENDING
-            order_type = mt5.ORDER_TYPE_BUY_LIMIT
-            type_filling = mt5.ORDER_FILLING_FOK
-        elif order_type == "Sell Limit":
-            action = mt5.TRADE_ACTION_PENDING
-            order_type = mt5.ORDER_TYPE_SELL_LIMIT
-            type_filling = mt5.ORDER_FILLING_FOK
+    def place_order_internal(
+        self,
+        symbol,
+        order_type,
+        lot,
+        price,
+        sl,
+        tp,
+        comment="mt5 assistant by irsa technology",
+    ):
+        """Build and send an order request to MetaTrader 5."""
 
-        # request = {
-        # "action": action,
-        # "symbol": symbol,
-        # "volume": lot,
-        # "type": order_type,
-        # "price": price,
-        # "sl": sl,
-        # "tp": tp,
-        # "deviation": 20,
-        # "magic": 234000,
-        # "comment": comment,
-        # "type_time": mt5.ORDER_TIME_GTC,
-        # "type_filling": type_filling
-        # }
+        order_types = {
+            "Buy": (
+                mt5.TRADE_ACTION_DEAL,
+                mt5.ORDER_TYPE_BUY,
+                mt5.ORDER_FILLING_RETURN,
+            ),
+            "Sell": (
+                mt5.TRADE_ACTION_DEAL,
+                mt5.ORDER_TYPE_SELL,
+                mt5.ORDER_FILLING_RETURN,
+            ),
+            "Buy Limit": (
+                mt5.TRADE_ACTION_PENDING,
+                mt5.ORDER_TYPE_BUY_LIMIT,
+                mt5.ORDER_FILLING_FOK,
+            ),
+            "Sell Limit": (
+                mt5.TRADE_ACTION_PENDING,
+                mt5.ORDER_TYPE_SELL_LIMIT,
+                mt5.ORDER_FILLING_FOK,
+            ),
+        }
+
+        if order_type not in order_types:
+            raise ValueError(f"Unsupported order type: {order_type!r}")
+
+        action, mt5_order_type, type_filling = order_types[order_type]
+
+        if lot <= 0:
+            raise ValueError("Lot size must be greater than zero.")
+
+        if action == mt5.TRADE_ACTION_DEAL:
+            tick = mt5.symbol_info_tick(symbol)
+
+            if tick is None:
+                raise RuntimeError(
+                    f"Could not retrieve market prices for {symbol}."
+                )
+
+            if order_type == "Buy":
+                price = tick.ask
+            else:
+                price = tick.bid
+
+            if price <= 0:
+                raise RuntimeError(f"Invalid market price for {symbol}.")
+
+        if price <= 0 or sl <= 0 or tp <= 0:
+            raise ValueError("Price, stop-loss, and take-profit must be positive.")
+
         request = {
             "action": action,
             "symbol": symbol,
             "volume": lot,
-            "type": order_type,
+            "type": mt5_order_type,
             "price": price,
             "sl": sl,
             "tp": tp,
             "deviation": 20,
             "magic": 234000,
-            "comment": "mt5 asistant",
+            "comment": comment,
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": type_filling
-            }        
-        return mt5.order_send(request)
+            "type_filling": type_filling,
+        }
+
+        result = mt5.order_send(request)
+
+        if result is None:
+            raise RuntimeError(
+                f"MetaTrader 5 order_send failed: {mt5.last_error()}"
+            )
+
+        return result
     
 if __name__ == '__main__':
     app = TradingApp()
