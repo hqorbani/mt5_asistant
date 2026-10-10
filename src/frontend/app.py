@@ -291,20 +291,6 @@ class TradingApp(tb.Window):
                 self.order_btn.config(text="Buy Limit")
             elif order_type == "Sell Limit":
                 self.order_btn.config(text="Sell Limit")
-            request = {
-                "action": mt5.TRADE_ACTION_PENDING,
-                "symbol": symbol,
-                "volume": calculated_lot,
-                "type": mt5.ORDER_TYPE_BUY_LIMIT,
-                "price": entry_price,
-                "sl": stop_loss_price,
-                "tp": take_profit_price,
-                "deviation": 20,
-                "magic": 234000,
-                "comment": "comment",
-                "type_time": mt5.ORDER_TIME_GTC,
-                "type_filling": mt5.ORDER_FILLING_FOK
-                }
             self.order_btn.config(command= lambda:
                                   self.call_place_order(
                                                 symbol ,
